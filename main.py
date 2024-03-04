@@ -52,17 +52,18 @@ simulate_forward_diffusion(dataloader, diffusion_model)
 """## Training"""
 
 # Load a previously trained model state or initialize a new model
-load_model(model=diffusion_model.unet, isNew=False, filepath='Models/model_epoch_136.pth', device=device)
+load_model(model=diffusion_model.unet, isNew=False, filepath='Models/Improvements/Cosine_Scheduler/model_epoch_72.pth', device=device)
 
 # Initialize the optimizer with the model parameters and a learning rate
 optimizer = Adam(diffusion_model.unet.parameters(), lr=0.001)
 
 # Define the total number of epochs for training
-epochs = 600
+epochs = 100
+print(f'Device: {diffusion_model.device}')
 
-for epoch in range(136, epochs):
+for epoch in range(72, epochs):
     # Create a tqdm progress bar for visual feedback
-    progress_bar = tqdm(enumerate(dataloader), total=len(dataloader), desc=f"Epoch {epoch+1}/{epochs}")
+    progress_bar = tqdm(enumerate(dataloader), total=len(dataloader), desc=f"Epoch {epoch}/{epochs}")
 
     # Iterate over the dataloader to process each batch
     for step, batch in progress_bar:
@@ -83,7 +84,7 @@ for epoch in range(136, epochs):
       
       # Optionally, save the model and generate sample progressions at the start of each epoch
       if step == 0:
-        save_model(diffusion_model.unet, filepath=f'Models/model_epoch_{epoch}.pth')
+        save_model(diffusion_model.unet, filepath=f'Models/Improvements/Cosine_Scheduler/model_epoch_{epoch}.pth')
 
         print(f"Epoch {epoch} | step {step:03d} Loss: {loss.item()} ")
         save_sample_progression(epoch, IMG_SIZE, diffusion_model.device, diffusion_model, filename_prefix=f"progression_step_{step}")

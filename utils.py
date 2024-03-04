@@ -163,7 +163,7 @@ def save_sample_progression(epoch, img_size, device, diffusion_model, filename_p
             show_tensor_image(img.detach().cpu()) # Show the image (move to CPU if necessary)
 
     # Construct the save path using the provided filename prefix and the current epoch
-    save_path = f"Imgs/{filename_prefix}_epoch_{epoch}.png"
+    save_path = f"Imgs/Improvements/Cosine_Scheduler/{filename_prefix}_epoch_{epoch}.png"
     plt.savefig(save_path)  # Save the figure to the specified path
     plt.close()  # Close the figure to free memory
     print(f"Progression image saved to {save_path}") # Print a confirmation message

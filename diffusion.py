@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import torch.nn.functional as F
 
 class Diffusion():
@@ -9,7 +10,10 @@ class Diffusion():
 
         # Pre-calculate values for the diffusion process based on a set number of timesteps
         self.T = 300 # Total number of timesteps
-        self.betas = self.linear_beta_schedule(timesteps=self.T) # Beta values for each timestep
+
+        ### Use one of them ###
+        # self.betas = self.linear_beta_schedule(timesteps=self.T) # Beta values for each timestep
+        self.betas = self.cosine_schedule(self.T)
 
         # Calculate alpha values and their cumulative product for diffusion scaling
 
@@ -33,6 +37,15 @@ class Diffusion():
 
         # Variance of the posterior distribution
         self.posterior_variance = self.betas * (1. - self.alphas_cumprod_prev) / (1. - self.alphas_cumprod)
+
+    def cosine_schedule(self, num_timesteps, s=-0.5):
+        def f(t):
+            return torch.cos((t / num_timesteps + s) / (1 + s) * 0.5 * torch.pi) ** 2
+        x = torch.linspace(0, num_timesteps, num_timesteps + 1)
+        alphas_cumprod = f(x) / f(torch.tensor([0]))
+        betas = 1 - alphas_cumprod[1:] / alphas_cumprod[:-1]
+        betas = torch.clip(betas, 0.0001, 0.999)
+        return betas
 
     def linear_beta_schedule(self, timesteps, start=0.0001, end=0.02):
         """
