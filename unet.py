@@ -1,6 +1,7 @@
 import math
 import torch
 from torch import nn
+from torch.nn.utils import spectral_norm
 
 """
 **Key Takeaways**:
@@ -40,24 +41,24 @@ class Block(nn.Module):
         super().__init__() # Initialize the superclass (nn.Module) to inherit its properties and methods
 
         # Define a linear layer to process time embeddings
-        self.time_mlp =  nn.Linear(time_emb_dim, out_ch) 
+        self.time_mlp =  nn.Linear(time_emb_dim, out_ch)
 
         # If the block is specified as an upsampling block...
         if up: 
             # Convolution to halve the channels after concatenation in U-Net
-            self.conv1 = nn.Conv2d(2*in_ch, out_ch, 3, padding=1)
+            self.conv1 = spectral_norm(nn.Conv2d(2*in_ch, out_ch, 3, padding=1))
 
             # Transposed convolution for upsampling
-            self.transform = nn.ConvTranspose2d(out_ch, out_ch, 4, 2, 1)
+            self.transform = spectral_norm(nn.ConvTranspose2d(out_ch, out_ch, 4, 2, 1))
         else:
             # Regular convolution for downsampling or maintaining size
-            self.conv1 = nn.Conv2d(in_ch, out_ch, 3, padding=1)
+            self.conv1 = spectral_norm(nn.Conv2d(in_ch, out_ch, 3, padding=1))
 
             # Convolution with stride for downsampling
-            self.transform = nn.Conv2d(out_ch, out_ch, 4, 2, 1)
+            self.transform = spectral_norm(nn.Conv2d(out_ch, out_ch, 4, 2, 1))
 
         # Additional convolution layer to further process the tensor
-        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1)
+        self.conv2 = spectral_norm(nn.Conv2d(out_ch, out_ch, 3, padding=1))
 
         # Batch normalization layers to stabilize and accelerate training
         self.bnorm1 = nn.BatchNorm2d(out_ch)

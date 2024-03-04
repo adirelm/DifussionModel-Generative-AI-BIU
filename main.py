@@ -5,7 +5,7 @@ from unet import SimpleUnet
 from torch.optim import Adam
 from diffusion import Diffusion
 from torch.utils.data import DataLoader
-from utils import show_images, load_model, save_model, load_transformed_dataset, save_sample_progression, simulate_forward_diffusion
+from utils import PATH, show_images, load_model, save_model, load_transformed_dataset, save_sample_progression, simulate_forward_diffusion
 
 # Set parameters for data loading and image processing
 
@@ -47,12 +47,12 @@ data = load_transformed_dataset(IMG_SIZE)
 dataloader = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True, drop_last=True) # Create DataLoader for batching and shuffling
 
 # Simulate forward diffusion
-simulate_forward_diffusion(dataloader, diffusion_model)
+# simulate_forward_diffusion(dataloader, diffusion_model)
 
 """## Training"""
 
 # Load a previously trained model state or initialize a new model
-load_model(model=diffusion_model.unet, isNew=False, filepath='Models/Improvements/Cosine_Scheduler/model_epoch_72.pth', device=device)
+load_model(model=diffusion_model.unet, isNew=True, filepath=f'Models/{PATH}/model_epoch_1.pth', device=device)
 
 # Initialize the optimizer with the model parameters and a learning rate
 optimizer = Adam(diffusion_model.unet.parameters(), lr=0.001)
@@ -61,7 +61,7 @@ optimizer = Adam(diffusion_model.unet.parameters(), lr=0.001)
 epochs = 100
 print(f'Device: {diffusion_model.device}')
 
-for epoch in range(72, epochs):
+for epoch in range(1, epochs):
     # Create a tqdm progress bar for visual feedback
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader), desc=f"Epoch {epoch}/{epochs}")
 
@@ -84,7 +84,7 @@ for epoch in range(72, epochs):
       
       # Optionally, save the model and generate sample progressions at the start of each epoch
       if step == 0:
-        save_model(diffusion_model.unet, filepath=f'Models/Improvements/Cosine_Scheduler/model_epoch_{epoch}.pth')
+        save_model(diffusion_model.unet, filepath=f'Models/{PATH}/model_epoch_{epoch}.pth')
 
         print(f"Epoch {epoch} | step {step:03d} Loss: {loss.item()} ")
         save_sample_progression(epoch, IMG_SIZE, diffusion_model.device, diffusion_model, filename_prefix=f"progression_step_{step}")
