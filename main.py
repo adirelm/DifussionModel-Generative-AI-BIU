@@ -1,10 +1,17 @@
+
 import torch
 import torchvision
+import numpy as np
 from tqdm import tqdm
 from unet import SimpleUnet
 from torch.optim import Adam
+import matplotlib.pyplot as plt
 from diffusion import Diffusion
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torchmetrics.image.fid import FrechetInceptionDistance
+from utils import prepare_real_images_subset, generate_images
+from torchvision.transforms import Resize, Compose, ToTensor, Normalize
 from utils import PATH, show_images, load_model, save_model, load_transformed_dataset, save_sample_progression, simulate_forward_diffusion
 
 # Set parameters for data loading and image processing
@@ -15,11 +22,17 @@ IMG_SIZE = 64
 # Batch size for data loading
 BATCH_SIZE = 128
 
+FID_INTERVAL = 3
+PLOT_INTERVAL = 1
+
 # Determine the device to use based on whether a GPU is available
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Instantiate the Diffusion model with SimpleUnet model
 diffusion_model = Diffusion(SimpleUnet(), device)
+
+# Initialize FID metric
+fid_metric = FrechetInceptionDistance().to(device)
 
 # Calculate the total number of parameters in the model
 # This is done by iterating over all parameters (weights and biases) of the model,
@@ -49,19 +62,30 @@ dataloader = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True, drop_last=Tru
 # Simulate forward diffusion
 # simulate_forward_diffusion(dataloader, diffusion_model)
 
-"""## Training"""
+data_transform = Compose([
+    Resize((IMG_SIZE, IMG_SIZE)), 
+    ToTensor(),
+    Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
+dataset = torchvision.datasets.StanfordCars(root=".", download=True, transform=data_transform)
+real_images_subset = prepare_real_images_subset(dataset, device=device)
 
-# Load a previously trained model state or initialize a new model
-load_model(model=diffusion_model.unet, isNew=True, filepath=f'Models/{PATH}/model_epoch_1.pth', device=device)
+"""## Training"""
 
 # Initialize the optimizer with the model parameters and a learning rate
 optimizer = Adam(diffusion_model.unet.parameters(), lr=0.001)
 
+# Load a previously trained model state or initialize a new model
+epoch = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_epoch_2.pth-none', device=device)
+
 # Define the total number of epochs for training
-epochs = 100
+epochs = 200
+average_loss_history = []
 print(f'Device: {diffusion_model.device}')
 
-for epoch in range(1, epochs):
+for epoch in range(epoch, epochs + 1):
+    total_loss = 0
+
     # Create a tqdm progress bar for visual feedback
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader), desc=f"Epoch {epoch}/{epochs}")
 
@@ -79,15 +103,71 @@ for epoch in range(1, epochs):
       
       optimizer.step() # Update model parameters
 
+      total_loss += loss.item()
+
       # Update the tqdm progress bar with the current loss
       progress_bar.set_postfix(loss=loss.item())
       
       # Optionally, save the model and generate sample progressions at the start of each epoch
-      if step == 0:
-        save_model(diffusion_model.unet, filepath=f'Models/{PATH}/model_epoch_{epoch}.pth')
+      # Check if this is the last step/batch of the epoch
+      is_last_step = (step == len(dataloader) - 1)
+      if is_last_step:
+        save_model(diffusion_model.unet, optimizer, epoch, filepath=f'Models/{PATH}/model_epoch_{epoch}.pth')
 
         print(f"Epoch {epoch} | step {step:03d} Loss: {loss.item()} ")
         save_sample_progression(epoch, IMG_SIZE, diffusion_model.device, diffusion_model, filename_prefix=f"progression_step_{step}")
+
+    # Calculate and store the average loss for the epoch
+    avg_loss = total_loss / len(dataloader)
+    average_loss_history.append(avg_loss)
+
+    # Save a plot of the average loss over epochs
+    if epoch % PLOT_INTERVAL == 0:
+        plt.figure(figsize=(10, 6))
+        plt.plot(np.arange(1, epoch + 1), average_loss_history, marker='o', linestyle='-', label='Average Loss over Epochs')
+      
+        plt.xlabel('Epoch')
+        plt.ylabel('Average Loss')
+        plt.title('Training Loss Progression')
+        
+        # Setting integer values for the x-axis (epochs)
+        plt.xticks(np.arange(1, epoch + 1, step=1))
+        
+        # Setting the y-axis to have ticks formatted with three decimal places
+        from matplotlib.ticker import FuncFormatter
+        plt.gca().yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:.3f}'))
+        
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(f'Plots/{PATH}/loss_plot_epoch_{epoch}.png')
+        plt.close()
+
+    if epoch % FID_INTERVAL == 0:
+      print('Calculating FID...')
+      fid_metric.reset()  # Prepare for a new FID calculation
+
+      # Generate fake images
+      fake_images = generate_images(diffusion_model, len(real_images_subset), IMG_SIZE, device)
+      
+      # If the images are normalized to [0, 1], rescale them to [0, 255]
+      fake_images_rescaled = fake_images * 255.0
+
+      # Convert to torch.uint8
+      fake_images_uint8 = fake_images_rescaled.type(torch.uint8)
+
+      # Resize fake images to match the size expected by the FID metric
+      fake_images_resized = F.interpolate(fake_images_uint8.float(), size=(299, 299), mode='bilinear', align_corners=False).type(torch.uint8)
+
+      # Similarly, ensure real_images_subset is in torch.uint8 and correct size
+      real_images_subset_resized = F.interpolate(real_images_subset.float(), size=(299, 299), mode='bilinear', align_corners=False).type(torch.uint8)
+
+      # Update FID metric with real and fake images
+      fid_metric.update(real_images_subset_resized, real=True)
+      fid_metric.update(fake_images_resized, real=False)
+
+      # Compute FID score
+      fid_score = fid_metric.compute()
+      print(f"Epoch {epoch}: FID score = {fid_score.item()}")
 
 
       

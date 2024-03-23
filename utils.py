@@ -1,8 +1,11 @@
+import os
 import torch
 import torchvision
 import numpy as np
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 from torchvision import transforms
+from torch.utils.data import DataLoader
 
 PATH = 'Improvements/Spectral_Norm_and_Cosine_Scheduler'
 
@@ -36,49 +39,56 @@ def show_images(dataset, num_samples=20, cols=4):
         # Display the current image. img[0] assumes the dataset returns a tuple (image, label)
         plt.imshow(img[0])
 
-def load_model(model, isNew=True, filepath='model_state_dict.pth', device='cpu'):
+def load_model(model, optimizer, filepath='model_checkpoint.pth', device='cpu'):
     """
-    Loads a model's state dictionary from a file.
-
-    This function can initialize a model with a previously saved state, facilitating the resumption of training
-    or the use of the model for inference without needing to retrain from scratch.
+    Loads the model's state dictionary and other training information from a file if it exists.
+    If the file does not exist, it initializes the model on the specified device without loading any state.
 
     Parameters:
-    - model (torch.nn.Module): The model into which the state dictionary should be loaded.
-    - isNew (bool, optional): A flag indicating whether the model is newly instantiated (True) and should be
-      moved to the appropriate device without loading weights, or if it should load an existing state dictionary (False).
-      Defaults to True.
-    - filepath (str, optional): The path to the file from which the model's state dictionary should be loaded.
-      Defaults to 'model_state_dict.pth'.
+    - model (torch.nn.Module): The model into which the state dictionary will be loaded.
+    - optimizer (torch.optim.Optimizer): The optimizer to which the state will be loaded.
+    - filepath (str, optional): The path to the file from which the model and training information should be loaded.
+      Defaults to 'model_checkpoint.pth'.
+    - device (str, optional): The device to load the model onto. Defaults to 'cpu'.
+
+    Returns:
+    - int: The epoch to start training from. Returns 1 if the checkpoint file does not exist.
     """
-    # If the model is new, simply move the model to the appropriate device without loading weights
-    if (isNew):
+    # Check if the checkpoint file exists
+    if os.path.exists(filepath):
+        checkpoint = torch.load(filepath, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
         model.to(device)
-    # Otherwise, load the state dictionary from the specified file and move the model to the appropriate device
+        if 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint.get('epoch', 0)  # Default to -1 if not found
+        # Load any additional information as needed
+        print(f"Checkpoint loaded from {filepath} at epoch {epoch}")
+        return epoch + 1  # Return the next epoch to continue training from
     else:
-        model.load_state_dict(torch.load(filepath, map_location=device))
+        # If the file does not exist, simply initialize the model on the specified device
         model.to(device)
-        # Print a confirmation message
-        print(f'Model loaded from {filepath}')
+        print("No checkpoint file found. Initializing model.")
+        return 1  # Start training from epoch 1
 
-def save_model(model, filepath='model_state_dict.pth'):
+
+def save_model(model, optimizer, epoch, filepath='model_checkpoint.pth'):
     """
-    Saves the model's state dictionary to a file.
-
-    This function is useful for checkpointing during training, allowing the model's learned parameters
-    to be saved at various stages or after training completes.
+    Saves the model's state dictionary and other relevant training information to a file.
 
     Parameters:
     - model (torch.nn.Module): The model to save.
-    - filepath (str, optional): The path to the file where the model's state dictionary should be saved.
-      Defaults to 'model_state_dict.pth'.
+    - optimizer (torch.optim.Optimizer): The optimizer used for training.
+    - epoch (int): The current epoch at the moment of saving.
+    - filepath (str, optional): The path to the file where the model and training information should be saved.
+      Defaults to 'model_checkpoint.pth'.
     """
-
-    # Save the model's state dictionary to the specified file path
-    torch.save(model.state_dict(), filepath)
-
-    # Print a confirmation message
-    print(f'Model saved to {filepath}')
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'epoch': epoch,
+    }, filepath)
+    print(f"Checkpoint saved to {filepath}")
     
 def load_transformed_dataset(img_size):
     """
@@ -201,3 +211,36 @@ def simulate_forward_diffusion(dataloader, diffusion_model):
 
     # After preparing all subplots, display the figure with all images
     plt.show()
+
+@torch.no_grad()
+def generate_images(diffusion_model, num_images, img_size, device):
+    # Initialize a tensor to hold the generated images
+    generated_images = torch.zeros((num_images, 3, img_size, img_size), device=device)
+
+    # Generate each image individually
+    for n in range(num_images):
+        # Start with random noise for each image
+        img = torch.randn((1, 3, img_size, img_size), device=device)
+
+        # Iteratively apply the reverse diffusion steps over all timesteps
+        for i in reversed(range(diffusion_model.T)):
+            t = torch.full((1,), i, device=device, dtype=torch.long)  # Current timestep tensor
+            img = diffusion_model.sample_timestep(img, t)  # Apply reverse diffusion step
+        
+
+        # Store the generated image
+        generated_images[n] = torch.clamp(img.squeeze(0), 0.0, 1.0)  # Remove batch dimension added by sample_timestep
+
+    return generated_images
+
+def prepare_real_images_subset(dataset, num_images=100, img_size=299, batch_size=128, device='cpu'):
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    real_images = []
+    for images, _ in loader:
+        real_images.append(images)
+        if len(real_images) * batch_size >= num_images:
+            break
+    real_images = torch.cat(real_images)[:num_images]
+    real_images = F.interpolate(real_images, size=(img_size, img_size)).to(device)
+    real_images = real_images / 2.0 + 0.5  # Rescale images from [-1, 1] to [0, 1]
+    return real_images
