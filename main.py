@@ -111,7 +111,7 @@ for epoch in range(epoch, epochs + 1):
       # Check if this is the last step/batch of the epoch
       is_last_step = (step == len(dataloader) - 1)
       if is_last_step:
-        save_model(diffusion_model.unet, optimizer, epoch, filepath=f'Models/{PATH}/model_epoch_{epoch}.pth')
+        save_model(diffusion_model.unet, optimizer, epoch, average_loss_history, filepath=f'Models/{PATH}/model_epoch_{epoch}.pth')
 
         print(f"Epoch {epoch} | step {step:03d} Loss: {loss.item()} ")
         save_sample_progression(epoch, IMG_SIZE, diffusion_model.device, diffusion_model, filename_prefix=f"progression_step_{step}")
