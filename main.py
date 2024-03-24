@@ -1,4 +1,5 @@
 
+import os
 import torch
 import torchvision
 import numpy as np
@@ -10,8 +11,8 @@ from diffusion import Diffusion
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchmetrics.image.fid import FrechetInceptionDistance
-from utils import prepare_real_images_subset, generate_images
 from torchvision.transforms import Resize, Compose, ToTensor, Normalize
+from utils import prepare_real_images_subset, generate_images, plot_loss
 from utils import PATH, show_images, load_model, save_model, load_transformed_dataset, save_sample_progression, simulate_forward_diffusion
 
 # Set parameters for data loading and image processing
@@ -22,8 +23,8 @@ IMG_SIZE = 64
 # Batch size for data loading
 BATCH_SIZE = 128
 
-FID_INTERVAL = 3
-PLOT_INTERVAL = 1
+FID_INTERVAL = 10
+PLOT_INTERVAL = 2
 
 # Determine the device to use based on whether a GPU is available
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -41,7 +42,7 @@ fid_metric = FrechetInceptionDistance().to(device)
 num_params = sum(p.numel() for p in diffusion_model.unet.parameters())
 
 # Print the total number of parameters to give an idea of the model's size and complexity
-print("Num params: ", num_params)
+print(f'Device: {diffusion_model.device}, Num params: {num_params}')
 
 # Display the model's architecture by printing the model object
 # This output includes the structure of the model showing the defined layers and their parameters,
@@ -76,12 +77,10 @@ real_images_subset = prepare_real_images_subset(dataset, device=device)
 optimizer = Adam(diffusion_model.unet.parameters(), lr=0.001)
 
 # Load a previously trained model state or initialize a new model
-epoch = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_epoch_2.pth-none', device=device)
+epoch, average_loss_history = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_checkpoint.pth', device=device)
 
 # Define the total number of epochs for training
 epochs = 200
-average_loss_history = []
-print(f'Device: {diffusion_model.device}')
 
 for epoch in range(epoch, epochs + 1):
     total_loss = 0
@@ -122,25 +121,7 @@ for epoch in range(epoch, epochs + 1):
     average_loss_history.append(avg_loss)
 
     # Save a plot of the average loss over epochs
-    if epoch % PLOT_INTERVAL == 0:
-        plt.figure(figsize=(10, 6))
-        plt.plot(np.arange(1, epoch + 1), average_loss_history, marker='o', linestyle='-', label='Average Loss over Epochs')
-      
-        plt.xlabel('Epoch')
-        plt.ylabel('Average Loss')
-        plt.title('Training Loss Progression')
-        
-        # Setting integer values for the x-axis (epochs)
-        plt.xticks(np.arange(1, epoch + 1, step=1))
-        
-        # Setting the y-axis to have ticks formatted with three decimal places
-        from matplotlib.ticker import FuncFormatter
-        plt.gca().yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:.3f}'))
-        
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(f'Plots/{PATH}/loss_plot_epoch_{epoch}.png')
-        plt.close()
+    plot_loss(average_loss_history, epoch=epoch, total_epochs=epochs, PLOT_INTERVAL=PLOT_INTERVAL, PATH=f'Plots/{PATH}/loss_plot_epoch_{epoch}.png')
 
     if epoch % FID_INTERVAL == 0:
       print('Calculating FID...')
@@ -168,6 +149,3 @@ for epoch in range(epoch, epochs + 1):
       # Compute FID score
       fid_score = fid_metric.compute()
       print(f"Epoch {epoch}: FID score = {fid_score.item()}")
-
-
-      

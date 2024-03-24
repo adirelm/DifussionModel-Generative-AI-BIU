@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torchvision import transforms
 from torch.utils.data import DataLoader
+from matplotlib.ticker import FuncFormatter
 
 PATH = 'Improvements/Spectral_Norm_and_Cosine_Scheduler'
 
@@ -48,47 +49,48 @@ def load_model(model, optimizer, filepath='model_checkpoint.pth', device='cpu'):
     - model (torch.nn.Module): The model into which the state dictionary will be loaded.
     - optimizer (torch.optim.Optimizer): The optimizer to which the state will be loaded.
     - filepath (str, optional): The path to the file from which the model and training information should be loaded.
-      Defaults to 'model_checkpoint.pth'.
-    - device (str, optional): The device to load the model onto. Defaults to 'cpu'.
+    - device (str, optional): The device to load the model onto.
 
     Returns:
     - int: The epoch to start training from. Returns 1 if the checkpoint file does not exist.
+    - list: The average loss history to date.
     """
-    # Check if the checkpoint file exists
     if os.path.exists(filepath):
         checkpoint = torch.load(filepath, map_location=device)
+
         model.load_state_dict(checkpoint['model_state_dict'])
         model.to(device)
-        if 'optimizer_state_dict' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch = checkpoint.get('epoch', 0)  # Default to -1 if not found
-        # Load any additional information as needed
-        print(f"Checkpoint loaded from {filepath} at epoch {epoch}")
-        return epoch + 1  # Return the next epoch to continue training from
+
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint.get('epoch', 0)
+        average_loss_history = checkpoint.get('average_loss_history', [])
+
+        print(f"Checkpoint loaded from {filepath}. Resuming from epoch {epoch}.")
+        return epoch + 1, average_loss_history
     else:
-        # If the file does not exist, simply initialize the model on the specified device
+        print("No checkpoint file found. Starting from scratch.")
         model.to(device)
-        print("No checkpoint file found. Initializing model.")
-        return 1  # Start training from epoch 1
+        return 1, []
 
-
-def save_model(model, optimizer, epoch, filepath='model_checkpoint.pth'):
+def save_model(model, optimizer, epoch, average_loss_history, filepath='model_checkpoint.pth'):
     """
-    Saves the model's state dictionary and other relevant training information to a file.
+    Saves the model's state dictionary, optimizer state, and training loss history to a file.
 
     Parameters:
     - model (torch.nn.Module): The model to save.
     - optimizer (torch.optim.Optimizer): The optimizer used for training.
     - epoch (int): The current epoch at the moment of saving.
+    - average_loss_history (list): The list of average loss values recorded at each epoch.
     - filepath (str, optional): The path to the file where the model and training information should be saved.
-      Defaults to 'model_checkpoint.pth'.
     """
-    torch.save({
+    checkpoint = {
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'epoch': epoch,
-    }, filepath)
-    print(f"Checkpoint saved to {filepath}")
+        'average_loss_history': average_loss_history
+    }
+    torch.save(checkpoint, filepath)
+    print(f"Checkpoint saved to {filepath} at epoch {epoch}.")
     
 def load_transformed_dataset(img_size):
     """
@@ -244,3 +246,28 @@ def prepare_real_images_subset(dataset, num_images=100, img_size=299, batch_size
     real_images = F.interpolate(real_images, size=(img_size, img_size)).to(device)
     real_images = real_images / 2.0 + 0.5  # Rescale images from [-1, 1] to [0, 1]
     return real_images
+
+def plot_loss(average_loss_history, epoch, total_epochs, PLOT_INTERVAL, PATH):
+    if epoch % PLOT_INTERVAL == 0 or epoch == total_epochs:
+        plt.figure(figsize=(10, 6))
+        plt.plot(np.arange(1, epoch + 1), average_loss_history, marker='o', linestyle='-', label='Average Loss over Epochs')
+      
+        plt.xlabel('Epoch')
+        plt.ylabel('Average Loss')
+        plt.title('Training Loss Progression')
+        
+        # Improve readability by showing every nth tick mark on x-axis
+        # If there are many epochs, adjust n to a larger number
+        n = max(1, int(epoch / 20))  # Adjust '20' to show fewer tick marks as needed
+        plt.xticks(np.arange(1, epoch + 1, step=n))
+        
+        # Format the y-axis with three decimal places
+        plt.gca().yaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:.3f}'))
+        
+        plt.legend()
+        plt.grid(True)
+        
+        # Ensure the plots directory exists
+        os.makedirs(f'Plots/{PATH}', exist_ok=True)
+        plt.savefig(f'Plots/{PATH}/loss_plot_epoch_{epoch}.png')
+        plt.close()
