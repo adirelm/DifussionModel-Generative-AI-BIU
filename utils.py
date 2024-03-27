@@ -62,11 +62,11 @@ def load_model(model, optimizer, filepath='model_checkpoint.pth', device='cpu'):
         model.to(device)
 
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch = checkpoint.get('epoch', 0)
+        epoch = checkpoint.get('epoch', 1)
         average_loss_history = checkpoint.get('average_loss_history', [])
 
         print(f"Checkpoint loaded from {filepath}. Resuming from epoch {epoch}.")
-        return epoch + 1, average_loss_history
+        return epoch, average_loss_history
     else:
         print("No checkpoint file found. Starting from scratch.")
         model.to(device)

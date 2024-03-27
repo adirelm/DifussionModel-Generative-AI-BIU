@@ -77,7 +77,7 @@ real_images_subset = prepare_real_images_subset(dataset, device=device)
 optimizer = Adam(diffusion_model.unet.parameters(), lr=0.001)
 
 # Load a previously trained model state or initialize a new model
-epoch, average_loss_history = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_checkpoint.pth', device=device)
+epoch, average_loss_history = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_epoch_188.pth', device=device)
 
 # Define the total number of epochs for training
 epochs = 200
@@ -121,7 +121,7 @@ for epoch in range(epoch, epochs + 1):
     average_loss_history.append(avg_loss)
 
     # Save a plot of the average loss over epochs
-    plot_loss(average_loss_history, epoch=epoch, total_epochs=epochs, PLOT_INTERVAL=PLOT_INTERVAL, PATH=f'Plots/{PATH}/loss_plot_epoch_{epoch}.png')
+    plot_loss(average_loss_history, epoch=epoch, total_epochs=epochs, PLOT_INTERVAL=PLOT_INTERVAL, PATH=PATH)
 
     if epoch % FID_INTERVAL == 0:
       print('Calculating FID...')
