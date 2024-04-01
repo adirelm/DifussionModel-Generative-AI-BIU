@@ -27,7 +27,7 @@ class Block(nn.Module):
     Methods:
     - forward(x, t): Propagates an input tensor x and a time embedding t through the block.
     """
-    def __init__(self, in_ch, out_ch, time_emb_dim, up=False):
+    def __init__(self, in_ch, out_ch, time_emb_dim, up=False, spectral_norm_on=False):
         """
         Initializes the Block with convolutional and normalization layers,
         along with a time embedding linear transformation.
@@ -46,26 +46,32 @@ class Block(nn.Module):
         # If the block is specified as an upsampling block...
         if up: 
             # Convolution to halve the channels after concatenation in U-Net
-            self.conv1 = spectral_norm(nn.Conv2d(2*in_ch, out_ch, 3, padding=1))
+            self.conv1 = spectral_norm(nn.Conv2d(2*in_ch, out_ch, 3, padding=1)) if spectral_norm_on else nn.Conv2d(2*in_ch, out_ch, 3, padding=1)
 
             # Transposed convolution for upsampling
-            self.transform = spectral_norm(nn.ConvTranspose2d(out_ch, out_ch, 4, 2, 1))
+            self.transform = spectral_norm(nn.ConvTranspose2d(out_ch, out_ch, 4, 2, 1)) if spectral_norm_on else nn.ConvTranspose2d(out_ch, out_ch, 4, 2, 1)
         else:
             # Regular convolution for downsampling or maintaining size
-            self.conv1 = spectral_norm(nn.Conv2d(in_ch, out_ch, 3, padding=1))
+            self.conv1 = spectral_norm(nn.Conv2d(in_ch, out_ch, 3, padding=1)) if spectral_norm_on else nn.Conv2d(in_ch, out_ch, 3, padding=1)
 
             # Convolution with stride for downsampling
-            self.transform = spectral_norm(nn.Conv2d(out_ch, out_ch, 4, 2, 1))
+            self.transform = spectral_norm(nn.Conv2d(out_ch, out_ch, 4, 2, 1)) if spectral_norm_on else nn.Conv2d(out_ch, out_ch, 4, 2, 1)
 
         # Additional convolution layer to further process the tensor
-        self.conv2 = spectral_norm(nn.Conv2d(out_ch, out_ch, 3, padding=1))
+        self.conv2 = spectral_norm(nn.Conv2d(out_ch, out_ch, 3, padding=1)) if spectral_norm_on else nn.Conv2d(out_ch, out_ch, 3, padding=1)
 
         # Batch normalization layers to stabilize and accelerate training
         self.bnorm1 = nn.BatchNorm2d(out_ch)
         self.bnorm2 = nn.BatchNorm2d(out_ch)
 
-        # ReLU activation function for non-linearity
-        self.relu  = nn.ReLU()
+        # # ReLU activation function for non-linearity
+        # self.relu  = nn.ReLU()
+
+        # SiLU activation function for non-linearity
+        self.silu  = nn.SiLU()
+
+        # # GELU activation function for non-linearity
+        # self.gelu  = nn.GELU()
 
     def forward(self, x, t):
         """
@@ -79,11 +85,11 @@ class Block(nn.Module):
         - Tensor: The output tensor after applying convolutions, time embedding, and
           either upsampling or downsampling based on the block's configuration.
         """
-        # Apply the first convolution, followed by batch normalization and ReLU activation
-        h = self.bnorm1(self.relu(self.conv1(x)))
+        # Apply the first convolution, followed by batch normalization and activation
+        h = self.bnorm1(self.silu(self.conv1(x)))
 
-       # Process the time embedding through a fully connected layer and ReLU
-        time_emb = self.relu(self.time_mlp(t))
+       # Process the time embedding through a fully connected layer and activation
+        time_emb = self.silu(self.time_mlp(t))
 
         # Reshape time embedding to be broadcastable with the feature map dimensions
         time_emb = time_emb[(..., ) + (None, ) * 2]
@@ -91,8 +97,8 @@ class Block(nn.Module):
         # Add the time embedding to the feature map, introducing the time condition
         h = h + time_emb
 
-        # Apply the second convolution, batch normalization, and ReLU activation
-        h = self.bnorm2(self.relu(self.conv2(h)))
+        # Apply the second convolution, batch normalization, and activation
+        h = self.bnorm2(self.silu(self.conv2(h)))
 
         # Apply the transformation layer (either upsampling or downsampling based on initialization)
         return self.transform(h)
@@ -187,7 +193,7 @@ class SimpleUnet(nn.Module):
         self.time_mlp = nn.Sequential(
                 SinusoidalPositionEmbeddings(time_emb_dim), # Generates sinusoidal time embeddings
                 nn.Linear(time_emb_dim, time_emb_dim), # Linear layer to process the embeddings
-                nn.ReLU() # ReLU activation function for non-linearity
+                nn.SiLU() # activation function for non-linearity
             )
 
         # Initial convolutional layer to project input images into the model's channel dimensions

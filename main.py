@@ -23,7 +23,7 @@ IMG_SIZE = 64
 # Batch size for data loading
 BATCH_SIZE = 128
 
-FID_INTERVAL = 10
+FID_INTERVAL = 100
 PLOT_INTERVAL = 2
 
 # Determine the device to use based on whether a GPU is available
@@ -77,7 +77,7 @@ real_images_subset = prepare_real_images_subset(dataset, device=device)
 optimizer = Adam(diffusion_model.unet.parameters(), lr=0.001)
 
 # Load a previously trained model state or initialize a new model
-epoch, average_loss_history = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_epoch_188.pth', device=device)
+epoch, average_loss_history = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_epoch_120.pth', device=device)
 
 # Define the total number of epochs for training
 epochs = 200

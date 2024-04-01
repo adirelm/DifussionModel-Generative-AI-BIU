@@ -8,7 +8,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 from matplotlib.ticker import FuncFormatter
 
-PATH = 'Improvements/Spectral_Norm_and_Cosine_Scheduler'
+PATH = 'Improvements/Cosine_Scheduler_SiLU'
 
 def show_images(dataset, num_samples=20, cols=4):
     """
