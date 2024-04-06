@@ -30,7 +30,7 @@ PLOT_INTERVAL = 2
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Instantiate the Diffusion model with SimpleUnet model
-diffusion_model = Diffusion(SimpleUnet(), device)
+diffusion_model = Diffusion(SimpleUnet(), device=device)
 
 # Initialize FID metric
 fid_metric = FrechetInceptionDistance().to(device)
@@ -77,7 +77,7 @@ real_images_subset = prepare_real_images_subset(dataset, device=device)
 optimizer = Adam(diffusion_model.unet.parameters(), lr=0.001)
 
 # Load a previously trained model state or initialize a new model
-epoch, average_loss_history = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_epoch_120.pth', device=device)
+epoch, average_loss_history = load_model(diffusion_model.unet, optimizer, filepath=f'Models/{PATH}/model_epoch_195.pth', device=device)
 
 # Define the total number of epochs for training
 epochs = 200

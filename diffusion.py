@@ -3,7 +3,7 @@ import numpy as np
 import torch.nn.functional as F
 
 class Diffusion():
-    def __init__(self, unet, device='cpu'):
+    def __init__(self, unet, scheduler='regular', device='cpu'):
         
         self.device = device
         self.unet = unet
@@ -11,9 +11,13 @@ class Diffusion():
         # Pre-calculate values for the diffusion process based on a set number of timesteps
         self.T = 300 # Total number of timesteps
 
-        ### Use one of them ###
-        # self.betas = self.linear_beta_schedule(timesteps=self.T) # Beta values for each timestep
-        self.betas = self.cosine_schedule(self.T)
+        # switch case of the scheduler
+        if scheduler == 'regular':
+            self.betas = self.linear_beta_schedule(timesteps=self.T) # Beta values for each timestep
+        elif scheduler == 'cosine':
+            self.betas = self.cosine_schedule(num_timesteps=self.T, s=-0.5)
+        else:
+            raise NotImplementedError
 
         # Calculate alpha values and their cumulative product for diffusion scaling
 

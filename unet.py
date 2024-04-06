@@ -64,11 +64,11 @@ class Block(nn.Module):
         self.bnorm1 = nn.BatchNorm2d(out_ch)
         self.bnorm2 = nn.BatchNorm2d(out_ch)
 
-        # # ReLU activation function for non-linearity
-        # self.relu  = nn.ReLU()
+        # ReLU activation function for non-linearity
+        self.relu  = nn.ReLU()
 
         # SiLU activation function for non-linearity
-        self.silu  = nn.SiLU()
+        # self.silu  = nn.SiLU()
 
         # # GELU activation function for non-linearity
         # self.gelu  = nn.GELU()
@@ -86,10 +86,10 @@ class Block(nn.Module):
           either upsampling or downsampling based on the block's configuration.
         """
         # Apply the first convolution, followed by batch normalization and activation
-        h = self.bnorm1(self.silu(self.conv1(x)))
+        h = self.bnorm1(self.relu(self.conv1(x)))
 
        # Process the time embedding through a fully connected layer and activation
-        time_emb = self.silu(self.time_mlp(t))
+        time_emb = self.relu(self.time_mlp(t))
 
         # Reshape time embedding to be broadcastable with the feature map dimensions
         time_emb = time_emb[(..., ) + (None, ) * 2]
@@ -98,7 +98,7 @@ class Block(nn.Module):
         h = h + time_emb
 
         # Apply the second convolution, batch normalization, and activation
-        h = self.bnorm2(self.silu(self.conv2(h)))
+        h = self.bnorm2(self.relu(self.conv2(h)))
 
         # Apply the transformation layer (either upsampling or downsampling based on initialization)
         return self.transform(h)
@@ -193,7 +193,7 @@ class SimpleUnet(nn.Module):
         self.time_mlp = nn.Sequential(
                 SinusoidalPositionEmbeddings(time_emb_dim), # Generates sinusoidal time embeddings
                 nn.Linear(time_emb_dim, time_emb_dim), # Linear layer to process the embeddings
-                nn.SiLU() # activation function for non-linearity
+                nn.ReLU() # activation function for non-linearity
             )
 
         # Initial convolutional layer to project input images into the model's channel dimensions
