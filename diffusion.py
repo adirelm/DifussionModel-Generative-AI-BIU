@@ -43,12 +43,38 @@ class Diffusion():
         self.posterior_variance = self.betas * (1. - self.alphas_cumprod_prev) / (1. - self.alphas_cumprod)
 
     def cosine_schedule(self, num_timesteps, s=-0.5):
+        """
+        Generates a cosine schedule for beta values over a specified number of timesteps.
+
+        The cosine schedule is designed to start with high beta values and gradually decrease them,
+        mimicking a cosine wave. This schedule can help the diffusion process by reducing the amount
+        of noise added in the later steps of the diffusion, promoting more stability.
+
+        Parameters:
+        - num_timesteps (int): The total number of timesteps in the diffusion process.
+        - s (float): The shift factor for the cosine function, allowing control over the phase of the cosine.
+
+        Returns:
+        - torch.Tensor: A tensor of beta values calculated based on the cosine schedule.
+        """
+
+        # Define the cosine function that models the cumulative product of alpha values.
         def f(t):
             return torch.cos((t / num_timesteps + s) / (1 + s) * 0.5 * torch.pi) ** 2
+        
+        # Create a tensor of linearly spaced values representing each timestep, including an extra
+        # point at the beginning to compute the initial cumulative product value.
         x = torch.linspace(0, num_timesteps, num_timesteps + 1)
+
+        # Calculate the cumulative product of alpha values using the defined cosine function.
         alphas_cumprod = f(x) / f(torch.tensor([0]))
+
+        # Compute beta values as the difference between successive alpha cumulative products.
         betas = 1 - alphas_cumprod[1:] / alphas_cumprod[:-1]
+
+        # Ensure beta values are within a valid range to avoid numerical instability.
         betas = torch.clip(betas, 0.0001, 0.999)
+        
         return betas
 
     def linear_beta_schedule(self, timesteps, start=0.0001, end=0.02):
