@@ -67,7 +67,7 @@ class Block(nn.Module):
         # ReLU activation function for non-linearity
         self.relu  = nn.ReLU()
 
-        # SiLU activation function for non-linearity
+        # # SiLU activation function for non-linearity
         # self.silu  = nn.SiLU()
 
         # # GELU activation function for non-linearity
