@@ -8,7 +8,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 from matplotlib.ticker import FuncFormatter
 
-PATH = 'base'
+PATH = 'Improvements/Spectral_Norm_and_Cosine_Scheduler'
 
 def show_images(dataset, num_samples=20, cols=4):
     """
@@ -89,7 +89,9 @@ def save_model(model, optimizer, epoch, average_loss_history, filepath='model_ch
         'epoch': epoch,
         'average_loss_history': average_loss_history
     }
-    torch.save(checkpoint, filepath)
+    
+    os.makedirs(filepath, exist_ok=True)
+    torch.save(checkpoint, f'{filepath}/model_epoch_{epoch}.pth')
     print(f"Checkpoint saved to {filepath} at epoch {epoch}.")
     
 def load_transformed_dataset(img_size):
@@ -177,6 +179,7 @@ def save_sample_progression(epoch, img_size, device, diffusion_model, filename_p
             show_tensor_image(img.detach().cpu()) # Show the image (move to CPU if necessary)
 
     # Construct the save path using the provided filename prefix and the current epoch
+    os.makedirs(f'Imgs/{PATH}', exist_ok=True)
     save_path = f"Imgs/{PATH}/{filename_prefix}_epoch_{epoch}.png"
     plt.savefig(save_path)  # Save the figure to the specified path
     plt.close()  # Close the figure to free memory
